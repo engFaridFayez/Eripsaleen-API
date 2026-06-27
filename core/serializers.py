@@ -23,9 +23,10 @@ class SectionSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'rows']
 
 class EventSerializer(serializers.ModelSerializer):
+    theater = serializers.StringRelatedField()
     class Meta:
         model = Event
-        fields = "__all__"
+        fields = ['id', 'title', 'theater', 'event_date']
 
 class TheaterDetailSerializer(serializers.ModelSerializer):
     sections = SectionSerializer(many=True, read_only=True)

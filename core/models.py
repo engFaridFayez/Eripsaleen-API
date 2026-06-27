@@ -7,9 +7,18 @@ class Theater(models.Model):
 
     def __str__(self):
         return self.name
-    
+
+class Show(models.Model):
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    cover = models.ImageField(upload_to='show_covers/', blank=True, null=True)
+
+    def __str__(self):
+        return self.title
+
 class Event(models.Model):
     title = models.CharField(max_length=255)
+    show = models.ForeignKey(Show, on_delete=models.CASCADE, related_name='events', blank=True, null=True)
     theater = models.ForeignKey(
         Theater,
         on_delete=models.CASCADE,
@@ -35,9 +44,22 @@ class Row(models.Model):
     def __str__(self):
         return f"{self.section} - Row {self.row_number}"
 
+
+class SeatCategory(models.Model):
+    theater = models.ForeignKey(
+        Theater,
+        on_delete=models.CASCADE,
+        related_name="seat_categories"
+    )
+
+    name = models.CharField(max_length=50)
+
+    def __str__(self):
+        return self.name
 class Seat(models.Model):
     row = models.ForeignKey(Row, on_delete=models.CASCADE, related_name="seats")
     seat_number = models.CharField(max_length=10,blank=True,null=True)
+    category = models.ForeignKey(SeatCategory, on_delete=models.PROTECT, related_name="seats", blank=True, null=True)
     
     def __str__(self):
         return f"Row {self.row.id} - Seat {self.seat_number}"
