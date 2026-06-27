@@ -1,16 +1,14 @@
 from rest_framework import serializers
-from .models import Theater, Section, Row, Seat, Booking
-
+from .models import Theater, Section, Row, Seat, Booking,Event
+from django.db import transaction
 
 class SeatSerializer(serializers.ModelSerializer):
     class Meta:
         model = Seat
-        fields = ['id', 'seat_number', 'is_booked']
-
-
+        fields = ['id', 'seat_number']
 
 class RowSerializer(serializers.ModelSerializer):
-    seats = SeatSerializer(many=True, read_only=True, source='seat_set')
+    seats = SeatSerializer(many=True, read_only=True)
 
     class Meta:
         model = Row
@@ -18,15 +16,19 @@ class RowSerializer(serializers.ModelSerializer):
 
 
 class SectionSerializer(serializers.ModelSerializer):
-    rows = RowSerializer(many=True, read_only=True, source='row_set')
+    rows = RowSerializer(many=True, read_only=True)
 
     class Meta:
         model = Section
         fields = ['id', 'name', 'rows']
 
+class EventSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Event
+        fields = "__all__"
 
 class TheaterDetailSerializer(serializers.ModelSerializer):
-    sections = SectionSerializer(many=True, read_only=True, source='section_set')
+    sections = SectionSerializer(many=True, read_only=True)
 
     class Meta:
         model = Theater
@@ -58,27 +60,132 @@ class RowSerializerSimple(serializers.ModelSerializer):
 class SeatSerializerSimple(serializers.ModelSerializer):
     class Meta:
         model = Seat
-        fields = ['id', 'row', 'seat_number', 'is_booked']
+        fields = ['id', 'row', 'seat_number']
 
 
-# 🎟️ Booking
 class BookingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
-        fields = ['id', 'seat', 'user_name', 'created_at']
+        fields = [
+            'id',
+            'event',
+            'seat',
+            'user_name',
+            'created_at'
+        ]
         read_only_fields = ['created_at']
 
-    def validate(self, attrs):
-        seat = attrs['seat']
 
-        if seat.is_booked:
-            raise serializers.ValidationError("This seat is already booked.")
+class EventSeatSerializer(serializers.ModelSerializer):
+    is_booked = serializers.SerializerMethodField()
+    section = serializers.SerializerMethodField()
+    row_number = serializers.SerializerMethodField()
 
-        return attrs
+    class Meta:
+        model = Seat
+        fields = ['id', 'seat_number', 'is_booked', 'section', 'row_number']
+
+    def get_is_booked(self, obj):
+        event = self.context.get('event')
+
+        return Booking.objects.filter(
+            event=event,
+            seat=obj
+        ).exists()
+
+    def get_section(self, obj):
+        return obj.row.section.name
+
+    def get_row_number(self, obj):
+        return obj.row.row_number
+
+
+class EventRowSerializer(serializers.ModelSerializer):
+    seats = serializers.SerializerMethodField()
+
+
+    class Meta:
+        model = Row
+        fields = ['id', 'row_number', 'seats', 'section']
+
+    def get_seats(self, obj):
+        event = self.context.get('event')
+
+        return EventSeatSerializer(
+            obj.seats.all(),
+            many=True,
+            context={'event': event}
+        ).data
+
+
+
+class EventSectionSerializer(serializers.ModelSerializer):
+    rows = EventRowSerializer(
+    many=True,
+    read_only=True
+    )
+
+
+    class Meta:
+        model = Section
+        fields = ['id', 'name', 'rows']
+
+class MultiBookingSerializer(serializers.Serializer):
+    event = serializers.IntegerField()
+    attendees = serializers.ListField(child=serializers.CharField(max_length=255),min_length=1)
+    email = serializers.EmailField(required=False, allow_blank=True)
+    phone_number = serializers.CharField(max_length=20, required=False, allow_blank=True)
+    image = serializers.ImageField(required=False,allow_null=True)
+    seats = serializers.ListField(
+        child=serializers.IntegerField(),
+        min_length=1
+    )
 
     def create(self, validated_data):
-        seat = validated_data['seat']
-        seat.is_booked = True
-        seat.save()
+        event_id = validated_data["event"]
+        seat_ids = validated_data["seats"]
+        attendees = validated_data["attendees"]
+        email = validated_data.get("email")
+        phone_number = validated_data.get("phone_number")
+        image = validated_data.get("image")
 
-        return Booking.objects.create(**validated_data)
+        with transaction.atomic():
+
+            event = Event.objects.get(id=event_id)
+
+            seats = Seat.objects.select_for_update().filter(
+                id__in=seat_ids
+            )
+
+            if seats.count() != len(seat_ids):
+                raise serializers.ValidationError(
+                    "One or more seats do not exist."
+                )
+
+            already_booked = Booking.objects.filter(
+                event=event,
+                seat__in=seats
+            )
+
+            if already_booked.exists():
+                raise serializers.ValidationError(
+                    "One or more seats are already booked."
+                )
+
+            bookings = []
+
+            for seat, attendee in zip(seats, attendees):
+                bookings.append(
+                    Booking(
+                        event=event,
+                        seat=seat,
+                        user_name=attendee,
+                        phone_number=phone_number,
+                        email=email,
+                        image=image
+                    )
+                )
+
+            Booking.objects.bulk_create(bookings)
+
+        return bookings

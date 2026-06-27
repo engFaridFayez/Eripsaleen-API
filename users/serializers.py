@@ -36,6 +36,19 @@ class RegisterSerializer(serializers.ModelSerializer):
 
         return user
 
+class UserSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CustomUser
+        fields = [
+            'id',
+            'username',
+            'full_name',
+            'phone',
+            'joined_date',
+            'birth_date',
+            'role',
+            'image',
+        ]
 
 # class ProfileSerializer(serializers.ModelSerializer):
 #     family = FamilyMiniSerializer()

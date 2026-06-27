@@ -2,13 +2,19 @@ from django.contrib import admin
 
 # Register your models here.
 from django.contrib import admin
-from .models import Theater, Section, Row, Seat, Booking
+from .models import Theater, Section, Row, Seat, Booking,Event
 
 
 @admin.register(Theater)
 class TheaterAdmin(admin.ModelAdmin):
     list_display = ['id', 'name', 'location']
     search_fields = ['name']
+
+@admin.register(Event)
+class EventAdmin(admin.ModelAdmin):
+    list_display = ['id', 'title', 'theater', 'event_date']
+    list_filter = ['theater', 'event_date']
+    search_fields = ['title']
 
 @admin.register(Section)
 class SectionAdmin(admin.ModelAdmin):
@@ -23,8 +29,8 @@ class RowAdmin(admin.ModelAdmin):
 
 @admin.register(Seat)
 class SeatAdmin(admin.ModelAdmin):
-    list_display = ['id', 'row', 'seat_number', 'is_booked']
-    list_filter = ['is_booked', 'row']
+    list_display = ['id', 'row', 'seat_number']
+    list_filter = ['row']
     search_fields = ['seat_number']
 
 @admin.register(Booking)

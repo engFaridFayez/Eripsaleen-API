@@ -7,6 +7,18 @@ class Theater(models.Model):
 
     def __str__(self):
         return self.name
+    
+class Event(models.Model):
+    title = models.CharField(max_length=255)
+    theater = models.ForeignKey(
+        Theater,
+        on_delete=models.CASCADE,
+        related_name='events'
+    )
+    event_date = models.DateTimeField()
+
+    def __str__(self):
+        return self.title
 
 class Section(models.Model):
     theater = models.ForeignKey(Theater,on_delete=models.CASCADE,related_name="sections")
@@ -26,15 +38,39 @@ class Row(models.Model):
 class Seat(models.Model):
     row = models.ForeignKey(Row, on_delete=models.CASCADE, related_name="seats")
     seat_number = models.CharField(max_length=10,blank=True,null=True)
-    is_booked = models.BooleanField(default=False)
     
     def __str__(self):
         return f"Row {self.row.id} - Seat {self.seat_number}"
 
 class Booking(models.Model):
-    seat = models.ForeignKey(Seat, on_delete=models.CASCADE, related_name="bookings")
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name='bookings',
+        null=True,
+        blank=True
+    )
+
+    seat = models.ForeignKey(
+        Seat,
+        on_delete=models.CASCADE,
+        related_name='bookings'
+    )
+
     user_name = models.CharField(max_length=255)
+    email = models.EmailField(blank=True, null=True)
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
+    image = models.ImageField(upload_to='booking_images/', blank=True, null=True)
+
     created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=['event', 'seat'],
+                name='unique_event_seat'
+            )
+        ]
 
     def __str__(self):
         return self.user_name
