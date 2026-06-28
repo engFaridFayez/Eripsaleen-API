@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Theater, Section, Row, Seat, Booking,Event
+from .models import Show, Theater, Section, Row, Seat, Booking,Event
 from django.db import transaction
 
 class SeatSerializer(serializers.ModelSerializer):
@@ -82,10 +82,36 @@ class EventSeatSerializer(serializers.ModelSerializer):
     section = serializers.SerializerMethodField()
     row_number = serializers.SerializerMethodField()
 
+    category = serializers.CharField(source="category.name")
+    color = serializers.CharField(source="category.color")
+
+    price = serializers.SerializerMethodField()
+
     class Meta:
         model = Seat
-        fields = ['id', 'seat_number', 'is_booked', 'section', 'row_number']
+        fields = [
+            "id",
+            "seat_number",
+            "is_booked",
+            "section",
+            "row_number",
+            "category",
+            "color",
+            "price",
+        ]
 
+    def get_price(self, obj):
+        event = self.context["event"]
+
+        price = event.prices.filter(
+            category=obj.category
+        ).first()
+
+        if price:
+            return price.price
+
+        return 0
+    
     def get_is_booked(self, obj):
         event = self.context.get('event')
 
@@ -190,3 +216,45 @@ class MultiBookingSerializer(serializers.Serializer):
             Booking.objects.bulk_create(bookings)
 
         return bookings
+    
+
+
+
+class ShowEventSerializer(serializers.ModelSerializer):
+    theater = serializers.StringRelatedField()
+
+    class Meta:
+        model = Event
+        fields = [
+            "id",
+            "title",
+            "theater",
+            "event_date"
+        ]
+
+class ShowSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Show
+        fields = [
+            "id",
+            "title",
+            "description",
+            "cover"
+        ]
+
+class ShowDetailSerializer(serializers.ModelSerializer):
+
+    events = ShowEventSerializer(
+        many=True,
+        read_only=True
+    )
+
+    class Meta:
+        model = Show
+        fields = [
+            "id",
+            "title",
+            "description",
+            "cover",
+            "events"
+        ]

@@ -4,7 +4,7 @@ from rest_framework import status
 from rest_framework.views import APIView
 from .serializers import MultiBookingSerializer
 from rest_framework.response import Response
-from .models import Theater, Section, Row, Seat, Booking,Event
+from .models import Show, Theater, Section, Row, Seat, Booking,Event
 from rest_framework import permissions
 from rest_framework.parsers import MultiPartParser, FormParser
 from .serializers import (
@@ -15,10 +15,23 @@ from .serializers import (
     SeatSerializerSimple,
     BookingSerializer,
     EventSerializer,
-    EventSectionSerializer
+    EventSectionSerializer,
+    ShowSerializer,
+    ShowDetailSerializer
 )
 
+class ShowViewSet(viewsets.ReadOnlyModelViewSet):
+    permission_classes = [permissions.AllowAny]
+    queryset = Show.objects.prefetch_related(
+        "events"
+    )
 
+    def get_serializer_class(self):
+
+        if self.action == "retrieve":
+            return ShowDetailSerializer
+
+        return ShowSerializer
 # =============================================
 #             For CRUD operarions
 # =============================================
@@ -104,7 +117,7 @@ class TheaterViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
 
-from django.http import QueryDict
+
 import json
 
 class MultiBookingView(APIView):

@@ -17,7 +17,7 @@ class Show(models.Model):
         return self.title
 
 class Event(models.Model):
-    title = models.CharField(max_length=255)
+    title = models.CharField(max_length=255,blank=True,null=True)
     show = models.ForeignKey(Show, on_delete=models.CASCADE, related_name='events', blank=True, null=True)
     theater = models.ForeignKey(
         Theater,
@@ -25,9 +25,11 @@ class Event(models.Model):
         related_name='events'
     )
     event_date = models.DateTimeField()
+    sales_start = models.DateTimeField()
+    sales_end = models.DateTimeField()
 
     def __str__(self):
-        return self.title
+        return self.title or self.show.title
 
 class Section(models.Model):
     theater = models.ForeignKey(Theater,on_delete=models.CASCADE,related_name="sections")
@@ -38,7 +40,7 @@ class Section(models.Model):
 
 class Row(models.Model):
     section = models.ForeignKey(Section, on_delete=models.CASCADE, related_name="rows")
-    row_number = models.PositiveIntegerField()
+    row_number = models.CharField(max_length=5)
     seats_per_row = models.PositiveIntegerField()
 
     def __str__(self):
@@ -51,11 +53,40 @@ class SeatCategory(models.Model):
         on_delete=models.CASCADE,
         related_name="seat_categories"
     )
-
+    color = models.CharField(
+    max_length=7,
+    default="#808080"
+)
     name = models.CharField(max_length=50)
 
     def __str__(self):
         return self.name
+    
+
+class EventSeatPrice(models.Model):
+
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name="prices"
+    )
+
+    category = models.ForeignKey(
+        SeatCategory,
+        on_delete=models.CASCADE
+    )
+
+    price = models.DecimalField(
+        max_digits=10,
+        decimal_places=2
+    )
+
+    class Meta:
+        unique_together = (
+            "event",
+            "category"
+        )
+
 class Seat(models.Model):
     row = models.ForeignKey(Row, on_delete=models.CASCADE, related_name="seats")
     seat_number = models.CharField(max_length=10,blank=True,null=True)
