@@ -7,6 +7,8 @@ from rest_framework.response import Response
 from .models import Show, Theater, Section, Row, Seat, Booking,Event
 from rest_framework import permissions
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.filters import SearchFilter, OrderingFilter
+from django_filters.rest_framework import DjangoFilterBackend
 from .serializers import (
     TheaterSerializer,
     TheaterDetailSerializer,
@@ -35,10 +37,24 @@ class ShowViewSet(viewsets.ReadOnlyModelViewSet):
 # =============================================
 #             For CRUD operarions
 # =============================================
-class TheaterViewSet(viewsets.ModelViewSet):
-    permission_classes = [permissions.AllowAny]
-    queryset = Theater.objects.all()
+class AdminTheaterViewSet(viewsets.ModelViewSet):
+    permission_classes = [permissions.IsAdminUser]
+    queryset = Theater.objects.all().order_by("id")
     serializer_class = TheaterSerializer
+    filter_backends = [
+        DjangoFilterBackend,
+        SearchFilter,
+        OrderingFilter,
+    ]
+    search_fields = [
+        "name",
+        "location",
+    ]
+
+    ordering_fields = [
+        "id",
+        "name",
+    ]
 
     def get_serializer_class(self):
         if self.action == 'retrieve':
