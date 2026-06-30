@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Show, Theater, Section, Row, Seat, Booking,Event
+from .models import SeatCategory, Show, Theater, Section, Row, Seat, Booking,Event
 from django.db import transaction
 
 class SeatSerializer(serializers.ModelSerializer):
@@ -57,24 +57,75 @@ class TheaterSerializer(serializers.ModelSerializer):
 
 # Section (simple CRUD)
 class SectionSerializerSimple(serializers.ModelSerializer):
+    theater_name = serializers.CharField(
+        source="theater.name",
+        read_only=True
+    )
+
     class Meta:
         model = Section
-        fields = ['id', 'theater', 'name']
+        fields = [
+            "id",
+            "theater",
+            "theater_name",
+            "name"
+        ]
 
 
 # 📏 Row (simple CRUD)
 class RowSerializerSimple(serializers.ModelSerializer):
+    section_name = serializers.CharField(
+    source="section.name",
+    read_only=True
+    )
+    theater_name = serializers.CharField(
+        source="section.theater.name",
+        read_only=True
+    )
     class Meta:
         model = Row
-        fields = ['id', 'section', 'row_number', 'seats_per_row']
+        fields = ['id',"theater_name", 'section','section_name', 'row_number', 'seats_per_row']
 
 
 # 💺 Seat (simple CRUD)
 class SeatSerializerSimple(serializers.ModelSerializer):
+    row_name = serializers.CharField(
+        source="row.row_number",
+        read_only=True
+    )
+
+    section_name = serializers.CharField(
+        source="row.section.name",
+        read_only=True
+    )
+
+    theater_name = serializers.CharField(
+        source="row.section.theater.name",
+        read_only=True
+    )
+
+    category = serializers.SerializerMethodField()
+
+    def get_category(self, obj):
+        if obj.category:
+            return {
+                "id": obj.category.id,
+                "name": obj.category.name,
+                "color": obj.category.color,
+            }
+        return None
+
     class Meta:
         model = Seat
-        fields = ['id', 'row', 'seat_number']
-
+        fields = [
+            "id",
+            "row",
+            "row_name",
+            "section_name",
+            "seat_number",
+            "theater_name",
+            "category",
+        ]
 
 class BookingSerializer(serializers.ModelSerializer):
     class Meta:
@@ -93,11 +144,8 @@ class EventSeatSerializer(serializers.ModelSerializer):
     is_booked = serializers.SerializerMethodField()
     section = serializers.SerializerMethodField()
     row_number = serializers.SerializerMethodField()
-
-    category = serializers.CharField(source="category.name")
-    color = serializers.CharField(source="category.color")
-
     price = serializers.SerializerMethodField()
+    category = serializers.SerializerMethodField()
 
     class Meta:
         model = Seat
@@ -108,21 +156,27 @@ class EventSeatSerializer(serializers.ModelSerializer):
             "section",
             "row_number",
             "category",
-            "color",
             "price",
         ]
 
+
+    def get_category(self, obj):
+        if not obj.category:
+            return None
+
+        return {
+            "id": obj.category.id,
+            "name": obj.category.name,
+            "color": obj.category.color,
+        }
+        
+
+
     def get_price(self, obj):
-        event = self.context["event"]
+        if not obj.category or obj.category.price is None:
+            return 0
 
-        price = event.prices.filter(
-            category=obj.category
-        ).first()
-
-        if price:
-            return price.price
-
-        return 0
+        return obj.category.price
     
     def get_is_booked(self, obj):
         event = self.context.get('event')
@@ -270,3 +324,87 @@ class ShowDetailSerializer(serializers.ModelSerializer):
             "cover",
             "events"
         ]
+
+
+
+
+class SectionDropdownSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Section
+        fields = ["id", "name"]
+
+class RowDropdownSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Row
+        fields = ["id", "row_number"]
+
+class RowDropdownSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Row
+        fields = ["id", "row_number"]
+
+
+
+
+class GenerateSeatsSerializer(serializers.Serializer):
+    prefix = serializers.CharField(max_length=10)
+    start = serializers.IntegerField(min_value=1)
+    end = serializers.IntegerField(min_value=1)
+    category = serializers.PrimaryKeyRelatedField(
+        queryset=SeatCategory.objects.all()
+    )
+    def validate(self, data):
+        if data["start"] > data["end"]:
+            raise serializers.ValidationError(
+                "Start number must be less than or equal to End number."
+            )
+
+        return data
+    
+
+
+
+
+
+class SeatCategorySerializer(serializers.ModelSerializer):
+    seats_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = SeatCategory
+        fields = [
+            "id",
+            "theater",
+            "name",
+            "color",
+            "seats_count",
+            "price"
+        ]
+
+    def get_seats_count(self, obj):
+        return obj.seats.count()
+
+    def validate(self, attrs):
+        theater = attrs.get(
+            "theater",
+            getattr(self.instance, "theater", None)
+        )
+
+        name = attrs.get(
+            "name",
+            getattr(self.instance, "name", None)
+        )
+
+        queryset = SeatCategory.objects.filter(
+            theater=theater,
+            name__iexact=name
+        )
+
+        if self.instance:
+            queryset = queryset.exclude(pk=self.instance.pk)
+
+        if queryset.exists():
+            raise serializers.ValidationError({
+                "name": "This category already exists for this theater."
+            })
+
+        return attrs

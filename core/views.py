@@ -2,9 +2,9 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework import status
 from rest_framework.views import APIView
-from .serializers import MultiBookingSerializer
+from .serializers import EventSeatSerializer, MultiBookingSerializer, RowDropdownSerializer, SeatCategorySerializer, SectionDropdownSerializer,GenerateSeatsSerializer
 from rest_framework.response import Response
-from .models import Show, Theater, Section, Row, Seat, Booking,Event
+from .models import SeatCategory, Show, Theater, Section, Row, Seat, Booking,Event
 from rest_framework import permissions
 from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.filters import SearchFilter, OrderingFilter
@@ -97,10 +97,74 @@ class SectionViewSet(viewsets.ModelViewSet):
     queryset = Section.objects.all()
     serializer_class = SectionSerializerSimple
 
+    @action(detail=True, methods=["get"])
+    def rows(self, request, pk=None):
+        section = self.get_object()
+
+        serializer = RowDropdownSerializer(
+            section.rows.all(),
+            many=True
+        )
+
+        return Response(serializer.data)
+
 class RowViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
     queryset = Row.objects.all()
     serializer_class = RowSerializerSimple
+
+    @action(detail=True, methods=["get"])
+    def seats(self, request, pk=None):
+        row = self.get_object()
+
+        serializer = SeatSerializerSimple(
+            row.seats.all(),
+            many=True
+        )
+
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=["post"])
+    def generate_seats(self, request, pk=None):
+        row = self.get_object()
+
+        serializer = GenerateSeatsSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        prefix = serializer.validated_data["prefix"]
+        start = serializer.validated_data["start"]
+        end = serializer.validated_data["end"]
+        category = serializer.validated_data["category"]
+        created = []
+        skipped = []
+
+        for number in range(start, end + 1):
+
+            seat_number = f"{prefix}{number}"
+
+            if Seat.objects.filter(
+                row=row,
+                seat_number=seat_number
+            ).exists():
+
+                skipped.append(seat_number)
+                continue
+
+            seat = Seat.objects.create(
+                row=row,
+                seat_number=seat_number,
+                category=category
+            )
+
+            created.append(seat)
+
+        return Response(
+            {
+                "created": len(created),
+                "skipped": skipped
+            },
+            status=status.HTTP_201_CREATED
+        )
 
 class SeatViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
@@ -131,6 +195,17 @@ class TheaterViewSet(viewsets.ModelViewSet):
     def seat_map(self, request, pk=None):
         theater = self.get_object()
         serializer = TheaterDetailSerializer(theater)
+        return Response(serializer.data)
+    
+    @action(detail=True, methods=["get"])
+    def sections(self, request, pk=None):
+        theater = self.get_object()
+
+        serializer = SectionDropdownSerializer(
+            theater.sections.all(),
+            many=True
+        )
+
         return Response(serializer.data)
     
 
@@ -170,3 +245,17 @@ class MultiBookingView(APIView):
             },
             status=status.HTTP_201_CREATED
         )
+    
+
+
+
+
+
+
+
+
+
+class SeatCategoryViewSet(viewsets.ModelViewSet):
+    permission_classes = [permissions.AllowAny]
+    queryset = SeatCategory.objects.select_related("theater")
+    serializer_class = SeatCategorySerializer
