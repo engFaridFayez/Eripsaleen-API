@@ -23,10 +23,22 @@ class SectionSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'rows']
 
 class EventSerializer(serializers.ModelSerializer):
-    theater = serializers.StringRelatedField()
+    theater_name = serializers.CharField(source="theater.name", read_only=True)
+    show_name = serializers.CharField(source="show.title", read_only=True)
+
     class Meta:
         model = Event
-        fields = ['id', 'title', 'theater', 'event_date']
+        fields = [
+            'id',
+            'title',
+            'theater',
+            'theater_name',
+            'event_date',
+            'sales_start',
+            'sales_end',
+            'show',
+            'show_name'
+        ]
 
 class TheaterDetailSerializer(serializers.ModelSerializer):
     sections = SectionSerializer(many=True, read_only=True)

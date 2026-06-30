@@ -22,8 +22,9 @@ from .serializers import (
     ShowDetailSerializer
 )
 
-class ShowViewSet(viewsets.ReadOnlyModelViewSet):
+class ShowViewSet(viewsets.ModelViewSet):
     permission_classes = [permissions.AllowAny]
+    parser_classes = [MultiPartParser, FormParser]
     queryset = Show.objects.prefetch_related(
         "events"
     )
